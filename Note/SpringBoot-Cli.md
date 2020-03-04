@@ -127,6 +127,11 @@ spring.resources.static-locations=classpath:/static/
 # 所有的静态资源的网址映射，包括JS、CSS等(不再包括HTML了)
 # 意思就是 ip:port + [context-path] + /** 都会去[spring.resources.static-locations]下面找资源了
 spring.mvc.static-path-pattern=/**
+
+# thymeleaf是一个模板引擎，缓存的意思是加载一次模板之后便不会在加载了，对于生产环境应该加上缓存，但是在开发过程中如果打开缓存，不方便开发人员调试。
+# 试想一下，改一行html，就需要重启服务器，肯定是不方便的。
+# 总结一下：本地开发环境下，需要把缓存关闭，否则调试成本太大。其他环境下缓存都需要打开。
+spring.thymeleaf.cache=false
 ```
 
 我们推荐使用模板引擎下的文件布局为：
@@ -176,7 +181,7 @@ spring.mvc.static-path-pattern=/**
 
 5、通过这种方式我们不能直接访问到html文件，只能通过controller的方式访问到页面了；
 
----
+### 4.3、小结
 
 目前我们采用`4.2`的方式放置页面吧
 
@@ -184,7 +189,77 @@ spring.mvc.static-path-pattern=/**
 
 ## 5、日志处理
 
+### 5.1、使用slf4j控制日志-继承logback设置
+
+继承Spring boot logback设置（可以在appliaction.yml或者application.properties设置`logging.*`属性）
+
+springboot自动为我们配置好了slf4j，我们直接就可以使用了
+
+日志级别总共有TARCE < DEBUG < INFO < WARN < ERROR < FATAL ，且级别是逐渐提供，如果日志级别设置为INFO，则意味TRACE和DEBUG级别的日志都看不到
+
+示例：
+
+```properties
+# 这里是用的root级别，即项目的所有日志
+logging.level.root=info
+# 我们也可以使用package级别，即指定包下使用相应的日志级别[com.suki.demo4为包名]
+logging.level.com.suki.demo4=trace
+logging.level.com.suki=trace
+
+# 指定记录log的文件名字
+logging.file.name=testLog.log
+# 指定记录log的文件夹，一般写为绝对路径，里面的日志文件springboot默认生成为spring.log
+logging.file.path=E:/Log
+# 注意上面这两者不会共存，至少我现在测试是这样的
+# 注：logging.file.name和logging.file.path都存在的情况下，logging.file.name生效
+
+#  在控制台输出的日志的格式
+logging.pattern.console=%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n
+# 指定文件中日志输出的格式
+logging.pattern.file=%d{yyyy-MM-dd HH:mm:ss.SSS} === [%thread] === %-5level === %logger{50} ==== %msg%n
+```
+
+### 5.2、重写默认配置
+
+我们重写一份xml文件配置覆盖springboot默认的配置，最后用`logging.config`指定其位置使用即可
+
+参考：
+
+https://qtdebug.com/html/spring-boot/%E6%97%A5%E5%BF%97%E9%85%8D%E7%BD%AE.html
+
+https://www.jianshu.com/p/d2fdaba60327
+
+https://www.cnblogs.com/harrychinese/p/springboot_logging.html
+
+https://www.jianshu.com/p/6f093b0b0c8a
+
+https://www.cnblogs.com/ningwuyu/p/12030391.html
+
+https://www.cnblogs.com/sybblogs/p/10373908.html
+
+### 5.3、巧技：使用linux命令记录日志
+
+我们将springboot打成jar包准备在linux上运行时，请使用如下命令：
+
+```
+nohup java -jar xxx.jar [Arg...] & 
+```
+
+这样原本在控制台输出的文本会跑到jar包同级目录下的`nohup.out`里去，个人认为这也是一个非常好的记录方法
+
+参考：https://www.cnblogs.com/sandea/p/10716399.html
+
 ## 6、设计与规范
+
+
+
+
+
+注：
+
+Controller返回值有四种：Map、String、Json、void
+
+Map如果不加@ResponseBody注解，会和Model、ModelAndView一样属于request域的内容，可在thymeleaf里面引用；如果加了@ResponseBody注解相当于直接返回json数据
 
 
 
