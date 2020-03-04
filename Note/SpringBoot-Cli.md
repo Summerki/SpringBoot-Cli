@@ -251,7 +251,46 @@ nohup java -jar xxx.jar [Arg...] &
 
 ## 6、设计与规范
 
+我们约定包名如下规则：
 
+```
+- aspect // 切面
+	- LogAspect.java
+    - xxxAspect.java
+- dao // data access object;用于封装对数据库的访问;持久层
+	- Get/List/Count/Save/Remove/UpdateXXXDao.java
+- handler // 可用于异常处理;handler我理解为处理者
+	- ControllerExceptionHandler.java
+- interceptor // 拦截器
+	- xxxInterceptor.java
+- po // persistant object持久对象；最形象的理解就是一个PO就是数据库中的一条记录
+- service // 业务逻辑层
+	- xxxService.java // 接口
+	- xxxServiceImpl.java // 对应接口实现类
+- util // 工具类
+	- xxxUtils.java 
+- vo // value object;用来装数据用的，而这个数据往往跟数据库没什么关系
+- web // 请求处理层
+	- xxxController.java
+- config // 配置
+	- WebConfig.java
+	- xxxConfig.java
+```
+
+---
+
+### 6.1、应用分层
+
+![1583325668976](images/1583325668976.png)
+
+### 6.2、Service/Dao层命令约定
+
++ 获取单个对象的方法用get做前缀。
++ 获取多个对象的方法用list做前缀。
++ 获取统计值的方法用count做前缀。
++ 插入的方法用save（推荐）或insert做前缀。
++ 删除的方法用remove（推荐）或delete做前缀。
++ 修改的方法用update做前缀。
 
 
 
