@@ -197,6 +197,8 @@ springboot自动为我们配置好了slf4j，我们直接就可以使用了
 
 日志级别总共有TARCE < DEBUG < INFO < WARN < ERROR < FATAL ，且级别是逐渐提供，如果日志级别设置为INFO，则意味TRACE和DEBUG级别的日志都看不到
 
+我们也可以配合Lombok的`@Slf4j`注解和IDEA的Lombok的插件来使用，这样我们就可以不用写`private final Logger logger = LoggerFactory.getLogger(this.getClass());`
+
 示例：
 
 ```properties
@@ -275,15 +277,38 @@ nohup java -jar xxx.jar [Arg...] &
 - config // 配置
 	- WebConfig.java
 	- xxxConfig.java
+- exception // 自定义异常
+	- xxxException.java
 ```
 
 ---
+
+```java
+// 我们在Service层应该这样写
+
+// xxxService.java里面：
+public interface xxxService() {
+    // ...
+}
+
+// xxxServiceImpl.java里面
+@Service // @Service注解标注在实现类上
+public class xxxServiceImpl() {
+ 	// ...   
+}
+
+// 注入到其他类时：
+@Autowired
+private xxxService xxxService; // 我们这里声明的是接口，但实际上注入的是该接口的实现类
+```
+
+
 
 ### 6.1、应用分层
 
 ![1583325668976](images/1583325668976.png)
 
-### 6.2、Service/Dao层命令约定
+### 6.2、Service/Dao层命名约定
 
 + 获取单个对象的方法用get做前缀。
 + 获取多个对象的方法用list做前缀。
@@ -292,7 +317,120 @@ nohup java -jar xxx.jar [Arg...] &
 + 删除的方法用remove（推荐）或delete做前缀。
 + 修改的方法用update做前缀。
 
+## 7、异常页面处理
 
+springboot自动配置好了异常页面，只要我们遵守下面的结构，出现相应的错误就会跳转到相应的自定义的页面去：
+
+```
+- resources
+	- templates
+		- error
+			- 4xx.html // 用户那边的错误
+			- 5xx.html // 服务器内部错误
+```
+
+### 7.1、自定义错误页面
+
+参考：
+
+https://www.jianshu.com/p/40096e2772f7（推荐）
+
+https://blog.csdn.net/qq_35783095/article/details/86600558（推荐）
+
+https://blog.csdn.net/chengyuqiang/article/details/88180538
+
+https://blog.csdn.net/futao__/article/details/82826564
+
+https://blog.csdn.net/qq_24598601/article/details/89243914
+
+https://my.oschina.net/mengyuankan/blog/2222140
+
+个人习惯的方式，不返回错误页面，而是返回错误的json数据，我拿到错误的json数据后再填入到网页中去，我现在想的流程如下：
+
+1、访问一个controller，出现异常
+
+2、跑到全局异常处理类（`@ControllerAdvice`）里面去，根据`@ExceptionHandler`找到对应的异常的处理类，里面干两件事情，一是组织好此次的异常json信息，二是返回通用异常页面
+
+3、返回的通用异常页面上会有一个ajax请求来请求另一个controller返回刚才组织好的异常json信息来显示在页面上
+
+![1583388648028](images/1583388648028.png)
+
+注：刚才看到上面这个流程想到这里涉及到了`两次请求`，而且这里的自定义异常对象不好怎么处理给ajax请求，想到可以使用`redirect`重定向来解决这个问题，我们可以重定向到通用异常页面，而且在`RedirectAttributes`携带好要用的异常信息，这样就完美了！
+
+`RedirectAttributes`的使用：https://www.cnblogs.com/g-smile/p/9121335.html
+
+---
+
+一般的样式代码：
+
+```java
+// 自定义异常：一般都是继承自RuntimeException
+public class MyException extends RuntimeException {
+
+    public NotFoundException() {
+    }
+
+    public NotFoundException(String message) {
+        super(message);
+    }
+
+    public NotFoundException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
+
+// 全局异常处理：
+@ControllerAdvice
+public class ControllerExceptionHandler {
+
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
+	
+    @ExceptionHandler(value = IllegalArgumentException.class) // 处理java内置的异常
+    @ResponseBody
+    // @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    private Result illegalArgumentExceptionHandler(HttpServletRequest request, Exception e) {
+        System.out.println("IllegalArgumentException 异常: " + e.getClass().getName());
+        return Result.error(ResultTypeEnum.PARAM_ERROR,"请求地址："+request.getRequestURI());
+    }
+    
+    // 处理自定义的MyException异常
+    @ExceptionHandler(value = MyException.class) // 你要处理什么类型的异常都在这里写就行了
+    @ResponseBody
+    // @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    private String myExceptionHandler(HttpServletRequest request,MyException e) {
+        // 1. 将异常信息存入构造好的异常对象中
+        // 2. 返回通用异常页面
+    }
+    
+    // 默认异常捕获，上面异常没走的话走我
+    @ExceptionHandler
+    @ResponseBody
+    // @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    private String myExceptionHandler(HttpServletRequest request,MyException e) {
+        // 1. 将异常信息存入构造好的异常对象中
+        // 2. 返回通用异常页面
+    }
+}
+
+// 抛出异常的controller的写法：
+@Controller
+public class xxx {
+    @RequestMapping("/throwMyException")
+    public void throwMyException(){
+        throw new MyException("我是主动抛出来的");
+    }
+}
+```
+
+
+
+## 8、配置切面
+
+## 9、连接数据库配置
+
+### 9.1、整合Druid
+
+### 9.2、JdbcTemplate
 
 注：
 
