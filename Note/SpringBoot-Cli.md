@@ -317,6 +317,12 @@ private xxxService xxxService; // 我们这里声明的是接口，但实际上�
 + 删除的方法用remove（推荐）或delete做前缀。
 + 修改的方法用update做前缀。
 
+---
+
++ Controller加`@Controller`注解
++ ServiceImpl加`@Service`注解
++ Dao加`@Repository`注解
+
 ## 7、异常页面处理
 
 springboot自动配置好了异常页面，只要我们遵守下面的结构，出现相应的错误就会跳转到相应的自定义的页面去：
@@ -357,7 +363,7 @@ https://my.oschina.net/mengyuankan/blog/2222140
 
 注：刚才看到上面这个流程想到这里涉及到了`两次请求`，而且这里的自定义异常对象不好怎么处理给ajax请求，想到可以使用`redirect`重定向来解决这个问题，我们可以重定向到通用异常页面，而且在`RedirectAttributes`携带好要用的异常信息，这样就完美了！
 
-`RedirectAttributes`的使用：https://www.cnblogs.com/g-smile/p/9121335.html
+`RedirectAttributes`的使用：https://www.cnblogs.com/g-smile/p/9121335.html；有`addAttributie`和`addFlashAttributie`，推荐使用`addFlashAttributie`方法添加参数。
 
 ---
 
@@ -422,15 +428,322 @@ public class xxx {
 }
 ```
 
-
-
 ## 8、配置切面
 
-## 9、连接数据库配置
+切面也是个好东西，注解了切面的类/方法可以设置其执行前后都有什么动作
 
-### 9.1、整合Druid
+我们知道切面表达式该怎么写即可：
 
-### 9.2、JdbcTemplate
+```
+execution(public  * com.sz.*.*())
+访问修饰符 + 返回值类型 + 包 + 类 + 方法 + 参数列表 + 异常声明描述
+*是所有的意思
+..多层的意义，意思就是包含子包
+
+举例：
+1、
+execution(public  * com.sz.*.login())
+public 的 任意返回值类型的必须在com.sz包下面的任意的方法的必须方法名为login的且参数是无参才可以
+2、
+execution(public  * com.sz.*.login(String))
+public 的 任意返回值类型的必须在com.sz包下面的任意的方法的必须方法名为login的且参数是一个参数的，类型为String的才可以
+3、
+execution(public  * com.sz.*.log*())
+public 的 任意返回值类型的必须在com.sz包下面的任意的方法的必须方法名为log开头的，且参数是无参的
+4、
+execution(public  * com.sz.*.*(double,double))
+对于参数要求是两个，并且都是double，参数之间使用逗号分隔即可
+5、
+execution(public  * com.sz.*.*(..))
+任意参数，无参，有参，以及对参数的数据类型都没有要求
+6、
+execution(public  * com.sz..*.*(..))
+com.sz包下的任意包（包含子包）的任意类的任意方法的任意参数
+7、
+execution(public  com.sz.Girl com.sz..*.*(..))
+是对返回值类型要求必须是 com.sz.Girl
+```
+
+下面是一个利用切面的例子：
+
+```java
+Aspect
+@Component
+public class LogAspect { // 记录每次访问每个controller的url/ip/method/args
+
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
+	
+	// 切点，log()随便取什么名字都行，重要的是它的Pointcut切面注解
+    @Pointcut("execution(* com.lrm.web.*.*(..))")
+    public void log() {}
+
+	
+    @Before("log()")
+    public void doBefore(JoinPoint joinPoint) { // JoinPoint参数！！！
+    	// 注意，这里是一种不在controller里面获取request的方法！！！很有用
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        HttpServletRequest request = attributes.getRequest();
+        // 通过request获取url和ip
+        String url = request.getRequestURL().toString();
+        String ip = request.getRemoteAddr();
+        // 通过JoinPoint获取调用的方法名和参数
+        String classMethod = joinPoint.getSignature().getDeclaringTypeName() + "." + joinPoint.getSignature().getName();
+        Object[] args = joinPoint.getArgs();
+        
+        RequestLog requestLog = new RequestLog(url, ip, classMethod, args);
+        logger.info("Request : {}", requestLog);
+    }
+
+    @After("log()")
+    public void doAfter() {
+//        logger.info("--------doAfter--------");
+    }
+	
+	// 带有返回值的After
+    @AfterReturning(returning = "result",pointcut = "log()") // returning对应下面函数的同名参数
+    public void doAfterRuturn(Object result) {
+        logger.info("Result : {}", result);
+    }
+
+    private class RequestLog {
+        private String url;
+        private String ip;
+        private String classMethod;
+        private Object[] args;
+
+        public RequestLog(String url, String ip, String classMethod, Object[] args) {
+            this.url = url;
+            this.ip = ip;
+            this.classMethod = classMethod;
+            this.args = args;
+        }
+
+        @Override
+        public String toString() {
+            return "{" +
+                    "url='" + url + '\'' +
+                    ", ip='" + ip + '\'' +
+                    ", classMethod='" + classMethod + '\'' +
+                    ", args=" + Arrays.toString(args) +
+                    '}';
+        }
+    }
+
+}
+```
+
+## 9、@RequestParam/@PathVariable/@RequestBody/@ResponseBody
+
+```
+@RequestParam和@PathVariable的使用：
+例如请求网址：http://localhost:8080/springmvc/hello/101?param1=10&param2=20
+则对应的controller为：
+@RequestMapping("/hello/{id}")
+public String getDetails(@PathVariable(value="id") String id,
+					     @RequestParam(value="param1", required=true) String param1,
+                         @RequestParam(value="param2", required=false) String param2){
+	// .......
+}
+```
+
+@RequestBody其实很少用吧，参考：https://blog.csdn.net/justry_deng/article/details/80972817
+
+@ResponseBody用于返回json数据
+
+## 10、profile
+
+如果按照之前的properties配置文件书写，那么我们有些地方（比如数据库连接）在测试和实际发布时都会要做很大修改，这样过于麻烦，profile机制给我们很大便捷
+
+springboot约定不同环境下的配置文件名称规则为`application-{profile}.properties`，主配置文件为`application.properties`
+
+所以，配置文件位置规则如下：
+
+```
+- resources
+	- application-dev.properties // 开发配置
+	- application-prod.properties // 生产配置
+	- application.properties // 主配置；并决定采用哪个配置
+```
+
+我们在`application.properties`使用`spring.profiles.active=dev/prod`来指定加载哪个配置文件
+
+## 11、数据库相关配置
+
+### 11.1、基础设置
+
+最基础的jdbc配置如下：
+
+参考：https://www.jianshu.com/p/e4ffdb5d81da
+
+```properties
+spring.datasource.username=root
+spring.datasource.password=123456
+spring.datasource.url=jdbc:mysql://127.0.0.1:3306/[数据库名称]?useUnicode=true&characterEncoding=UTF8&serverTimezone=GMT
+# 如果mysql.cj.jdbc是红色的话，把pom文件mysql那里的<scope>runtime</scope>去掉即可
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+```
+
+#### 注：mysql更改时区方法
+
+在运行springboot程序时若出现了：`The server time zone value 'ÖÐ¹ú±ê×¼Ê±¼ä' is unrecognized or represents more than one time zone`的错误
+
+![1583397297500](images/1583397297500.png)
+
+这是由于时区问题导致的, 只需要更改MySQL的时区，注意在英文状态下输入：
+
+```
+show variables like '%time_zone%'; 
+set global time_zone = '+8:00';   //修改mysql全局时区为东8区，即北京时间
+set time_zone = '+8:00'; //修改当前会话时区
+flush privileges; //立即生效
+```
+
+效果：
+
+![1583397350075](images/1583397350075.png)
+
+这样就不会报错，springboot那边也可以输出数据源和连接了：
+
+![1583397386284](images/1583397386284.png)
+
+### 11.2、整合Druid
+
+参考：
+
+https://mp.weixin.qq.com/s?__biz=MzI4Njg5MDA5NA==&mid=2247484075&idx=1&sn=ca6f0f19c32eb3276a8b562888e49120&chksm=ebd743aadca0cabc934b891fdc4e116d573042f72ae87893df5c2883e46b96affac7c1923cab&scene=21###wechat_redirect
+
+https://www.jianshu.com/p/e4ffdb5d81da
+
+还参考了自己的springboot笔记：https://github.com/Summerki/SpringBoot_Note/blob/master/%E6%A0%B8%E5%BF%83%E6%8A%80%E6%9C%AF%E7%AF%87Note/SpringBoot.md
+
+1、首先引入druid依赖
+
+```xml
+<!-- https://mvnrepository.com/artifact/com.alibaba/druid -->
+<dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>druid</artifactId>
+    <version>1.1.19</version>
+</dependency>
+
+<!--为什么这里需要log4j的依赖，下面的链接是解释-->
+<!--参考：https://blog.csdn.net/xingkongtianma01/article/details/81624313-->
+<!-- https://mvnrepository.com/artifact/log4j/log4j -->
+<dependency>
+    <groupId>log4j</groupId>
+    <artifactId>log4j</artifactId>
+    <version>1.2.17</version>
+</dependency>
+```
+
+2、相关配置文件如下：
+
+```properties
+# 这里上面都是一样的
+spring.datasource.username=root
+spring.datasource.password=
+spring.datasource.url=jdbc:mysql://127.0.0.1:3306/springboot_test?useUnicode=true&characterEncoding=UTF8&serverTimezone=GMT
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# 用来自定义数据源
+spring.datasource.type=com.alibaba.druid.pool.DruidDataSource
+
+# 其他额外配置：设置完后可以看到下面的配置背景填充，这因为下边这些配置无法绑定到DataSourceProperties上，即是这些配置没有生效
+# 下面为连接池的补充设置，应用到上面所有数据源中
+# 初始化大小，最小，最大
+spring.datasource.initialSize=5
+spring.datasource.minIdle=5
+spring.datasource.maxActive=20
+# 配置获取连接等待超时的时间
+spring.datasource.maxWait=60000
+# 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒
+spring.datasource.timeBetweenEvictionRunsMillis=60000
+# 配置一个连接在池中最小生存的时间，单位是毫秒
+spring.datasource.minEvictableIdleTimeMillis=300000
+spring.datasource.validationQuery=SELECT 1 FROM DUAL
+spring.datasource.testWhileIdle=true
+spring.datasource.testOnBorrow=false
+spring.datasource.testOnReturn=false
+# 打开PSCache，并且指定每个连接上PSCache的大小
+spring.datasource.poolPreparedStatements=true
+spring.datasource.maxPoolPreparedStatementPerConnectionSize=20
+# 配置监控统计拦截的filters，去掉后监控界面sql无法统计，'wall'用于防火墙
+spring.datasource.filters=stat,wall,log4j
+# 通过connectProperties属性来打开mergeSql功能；慢SQL记录
+spring.datasource.connectionProperties=druid.stat.mergeSql=true;druid.stat.slowSqlMillis=5000
+# 合并多个DruidDataSource的监控数据
+#spring.datasource.useGlobalDataSourceStat=true
+```
+
+3、配置druid数据源状态监控，配置一个拦截器和一个Servlet即可
+
+```java
+@Configuration
+public class DruidConfig {
+
+    @ConfigurationProperties(prefix = "spring.datasource")
+    @Bean
+    public DruidDataSource druidDataSource(){
+        return new DruidDataSource();
+    }
+
+    //配置Druid的监控
+    //1、配置一个管理后台的Servlet
+    @Bean
+    public ServletRegistrationBean statViewServlet(){
+        ServletRegistrationBean bean = new ServletRegistrationBean(new StatViewServlet(), "/druid/*");
+        Map<String,String> initParams = new HashMap<>();
+
+        initParams.put("loginUsername","admin");
+        initParams.put("loginPassword","123456");
+        initParams.put("allow","");//默认就是允许所有访问
+        // IP黑名单 (存在共同时，deny优先于allow) : 如果满足deny的话提示:Sorry, you are not permitted to view this page.
+        initParams.put("deny","192.168.15.21");
+
+        bean.setInitParameters(initParams);
+        return bean;
+    }
+
+
+    //2、配置一个web监控的filter
+    @Bean
+    public FilterRegistrationBean webStatFilter(){
+        FilterRegistrationBean bean = new FilterRegistrationBean();
+        bean.setFilter(new WebStatFilter());
+
+        Map<String,String> initParams = new HashMap<>();
+        //添加不需要忽略的格式信息
+        initParams.put("exclusions","*.js,*.css,/druid/*");
+        bean.setInitParameters(initParams);
+		
+        // 添加过滤信息
+        bean.setUrlPatterns(Arrays.asList("/*"));
+
+        return  bean;
+    }
+
+}
+```
+
+### 11.3、JdbcTemplate
+
+我觉得JdbcTemplate还挺好用的~所以在脚手架里面我决定使用jdbctemplate而先不使用其他框架
+
+参考：
+
+https://my.oschina.net/u/3480797/blog/3020706（重要！！！教你RowMapper接口的使用）
+
+https://www.jianshu.com/p/be60a81e2fe7（重要）
+
+https://www.jianshu.com/p/f0cbed671897
+
+
+
+
+
+### 11.4、事务
+
+
 
 注：
 
