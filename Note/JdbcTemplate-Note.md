@@ -708,6 +708,20 @@ public void queryM() {
 
 还有很多API没讲到，利用上面的经验和IDEA的`Ctrl+P`可以知道该怎么用
 
+---
+
+另外再说一个`queryForObject()`的操作，如果你查询的结果只有一个字段一个结果，那么利用`queryForObject()`方法可以很容易获取到结果。它可以返回比如Integer、Long等类型，主要利用`JdbcTemplate.queryForObject(String sql, Class<T> requiredType, @Nullable Object... args)`这个API可以返回一个你想要的类型（`requiredType`），下面看一个统计某个表的行数的例子：
+
+```java
+public void forObject() {
+    String sql = "select count(*) from spring_stu";
+    Integer res = jdbcTemplate.queryForObject(sql, Integer.class, new Object[]{}); // 直接返回Integer
+    log.info("查询结果 {}", res);
+}
+```
+
+---
+
 #### 多表查询操作
 
 参考：https://blog.csdn.net/fall10/article/details/84902958?depth_1-utm_source=distribute.pc_relevant.none-task&utm_source=distribute.pc_relevant.none-task
@@ -785,3 +799,11 @@ springboot输出结果：
 2、`RuntimeException`和自定义继承了`RuntimeException`的类可以用`@Transactional`回滚
 
 3、`非RuntimeException`事务不会回滚，除非使用`@Transactional(rollbackFor=非RuntimeException.class)`，抛出`非RuntimeException`异常, 并设置了`rollbackFor`参数, 事务能回滚
+
+---
+
+所以我推荐的做法是，自己写一个继承自`RuntimeException`的数据库异常类，在数据库的增删改操作上加上`try-catch`语句，抛出自定义的数据库异常，并且在这些方法上加上`@Transactional`注解即可
+
+### 11.5、常用套路
+
+![1583581974704](images/1583581974704.png)

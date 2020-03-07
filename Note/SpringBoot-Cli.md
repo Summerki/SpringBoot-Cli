@@ -613,33 +613,197 @@ springboot约定不同环境下的配置文件名称规则为`application-{profi
 
 ### 11.4、事务
 
----
+### 11.5、常用套路
 
 ## 12、返回JSON数据方法
 
-queryForObject返回int等类型介绍一下
+返回json数据毫无疑问要加上`@ResponseBody`注解
 
-链接问题，后面的中文会一起当作链接的一部分
+之前我都要导入fastjson的依赖，现在我发现根本不需要这样做，你直接定义controller的返回结果如下：
+
+```java
+// 返回一个对象的json形式
+@ResponseBody
+@RequestMapping("/xxx")
+public T test() {
+    return new T();
+}
+
+// 返回一个Map，json形式
+@ResponseBody
+@RequestMapping("/xxx")
+public Map<T,T> test() {
+    return new Map<T,T>;
+}
+
+// 返回一个list，json形式
+@ResponseBody
+@RequestMapping("/xxx")
+public List<T> test() {
+    return new List<T>;
+}
+```
+
+---
+
+注：`Model`、`ModelAndView`是属于request域的内容，不会返回给浏览器了，只能在模板引擎内使用
+
+---
+
+### 12.1、@JsonFormat和@DateTimeFormat的使用
+
+参考：https://www.cnblogs.com/mracale/p/9828346.html
+
+1、注解`@JsonFormat`主要是`后台到前台`的时间格式的转换
+
+2、注解`@DataTimeFormat`主要是`前后到后台`的时间格式的转换
+
+常用形式：
+
+```java
+@DateTimeFormat(pattern = "yyyy:MM:dd hh:mm:ss")
+@JsonFormat(pattern = "yyyy:MM:dd hh:mm:ss",timezone = "GMT+8") // timezone是时间设置为东八区，避免时间在转换中有误差
+private Date registerTime;
+
+// 注：@JsonFormat注解可以在属性的上方，同样可以在属性对应的get方法上，两种方式没有区别
+```
 
 ## 13、启动JAR包时带上自定义命令行参数
 
-## 14、解决跨域问题
+凭什么在命令行运行jar包时只能带有springboot自带的参数，我也要定制参数！
 
-## 15、定时任务
+根据《SpringBoot+Vue全栈开发实战》中描述，有两种方式获取命令行参数，一是`CommandLineRunner`，二是`ApplicationRunner`；用了下，感觉`CommandLineRunner`不好用，在此不介绍了
 
-## 16、获取当前JAR的绝对路径
+下面是`ApplicationRunner`的使用方法：
 
-## 17、springboot自带发送邮件的方法
+```java
+@Component // 注入到IOC容器中
+@Slf4j
+public class MyConfig implements ApplicationRunner { // 实现ApplicationRunner接口
+    @Override
+    public void run(ApplicationArguments args) throws Exception {
+        // 获取不是key-value形式的参数
+        List<String> nonOptionArgs = args.getNonOptionArgs();
+        log.info("nonOptionArgs {}", nonOptionArgs);
+        // 获取key-value形式的参数
+        Set<String> optionNames = args.getOptionNames(); // args.getOptionNames()获取所有的key
+        for (String item : optionNames) {
+            log.info("{} --对应-- {}", item, args.getOptionValues(item)); // args.getOptionValues(key)根据key获取对应的value值
+        }
+    }
+}
+```
+
+测试：
+
+```
+启动：
+java -jar jdbc_test-0.0.1.jar --test=hehu --test1=hehu1 测试 test
+输出：
+nonOptionArgs [测试, test]
+test --对应-- [hehu]
+test1 --对应-- [hehu1]
+```
+
+## 14、解决跨域CORS问题
+
+本节笔记来自《SpringBoot+Vue全栈开发实战》
+
+在相应的controller上面解决跨域问题：
+
+```java
+@DeleteMapping("/{id}")
+@CrossOrigin(value = "http://????", maxAge = 1800, allowedHeaders="*")
+public String delete() {
+    // code
+}
+```
+
+1、@CrossOrigin中的value表示支持的城，这里表示来自`http://???`域的请求是支持跨域的
+
+2、maxAge表示探测请求的有效期，对于DELETE，PUT请求或者有自定义头信息的请求，在执行过程中会先发送探测请求，探测请求不用每次都发送，可以配置一个有效期，有效期过了之后才会发送探测请求。这个属性默认是1800秒，即30分钟
+
+3、allowedHeaders表示允许的请求头，*表示所有的请求头都被允许
+
+上面是一种细粒度配置，还有一种全局配置：
+
+```java
+@Configuration // 配置类，注入
+public class MyConfig implements WebMvcConfigurer {
+
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("[你的controller Mapping,比如/book/**]")
+            .allowedHeaders("*")
+            .allowedMethods("*")
+            .maxAge(1800)
+            .allowedOrigins("http://???");
+    }
+}
+```
+
+## 15、SpringBoot中的多线程
+
+参考：已经写的很好了，我就不总结了，以后用到再说
+
+https://blog.csdn.net/u013467442/article/details/89366155
+
+https://www.jianshu.com/p/67052c477dbf
+
+## 16、定时任务
+
+### 16.1、Quartz实现定时任务
+
+参考：https://blog.csdn.net/fastlearn/article/details/83306796
+
+### 16.2、@Scheduled实现定时任务
+
+这是springboot自带的方式，但是它的cron表达式只能写死在注解上，我想要的是根据用户的输入来控制定时任务，这个需求得`16.1 Quartz`才能实现了
+
+## 17、获取当前JAR的绝对路径
+
+参考：https://blog.csdn.net/liangcha007/article/details/88526181
+
+```java
+// 推荐两种方法吧：
+// 1. 这一种当你在与jar包不同的磁盘执行时会有bug，但是一般不会有这样的情况呀，我还是比较推荐这种的
+System.out.println(System.getProperty("user.dir"));
+// 2. 这种不会出错，也推荐
+ApplicationHome h = new ApplicationHome(getClass());
+File jarF = h.getSource();
+System.out.println(jarF.getParentFile().toString());
+```
+
+附：获取classes目录的绝对路径方法：
+
+```java
+String path = ClassUtils.getDefaultClassLoader().getResource("").getPath();
+String path = ResourceUtils.getURL("classpath:").getPath();
+```
+
+## 18、springboot自带发送邮件的方法
+
+springboot已经集成了发送邮件的方法
+
+参考：https://www.jianshu.com/p/a7097a21b42d （讲的很详细了）
+
+## 19、文件上传和下载
+
+参考：https://baijiahao.baidu.com/s?id=1654419465068708673&wfr=spider&for=pc
+
+## 20、自定义favicon
+
+一个好用可以转换icon的网站：https://jinaconvert.com/cn/convert-to-ico.php
+
+将icon重命名为`favicon.ico`并且放在`resources/static`下面即可
+
+```
+- resoucres
+	- static
+		- favicon.ico
+```
 
 
-
-
-
-注：
-
-Controller返回值有四种：Map、String、Json、void
-
-Map如果不加@ResponseBody注解，会和Model、ModelAndView一样属于request域的内容，可在thymeleaf里面引用；如果加了@ResponseBody注解相当于直接返回json数据
 
 
 
