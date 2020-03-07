@@ -238,6 +238,22 @@ java.sql.Date sqlDate = new java.sql.Date(utilDate.getTime());
 
 ---
 
+#### execute方法
+
+在我看来常用于动态创建表的生成
+
+示例：
+
+```java
+// 创建表
+public void createTable() {
+    String sql = "create table test (id int(11))";
+    jdbcTemplate.execute(sql);
+}
+```
+
+---
+
 #### 增加单条数据
 
 首先我们要明确的一点是，向数据库增加数据的语句中不应该有主键，因为如果执行了两次该增加操作就会出现`主键冲突`的情况
@@ -528,9 +544,221 @@ https://blog.csdn.net/u013468917/article/details/52217954
 
 下面给出查询数据库的几个常用方法的返回值和使用场景：
 
-1、`query()`：一次查询多个结果，当然里面也可以只包含一个结果；返回一个`List<T>`
+1、`query()`：一次查询多个结果，当然里面也可以只包含一个结果；可以返回`List<T>`或`T`
 
-2、`queryForList()`： 该方法将返回一个List，该List中的每一条 记录是一个Map对象，对应应数据库中某一行；而该Map 中的每一项对应该数据库行中的某一列值
+2、`queryForList()`： 该方法将返回一个List，该List中的每一条记录是一个Map对象，对应应数据库中某一行；而该Map 中的每一项对应该数据库行中的某一列值；可以返回`List<T>`或`List<Map<String, Object>>`
+
+3、`queryForMap()`：查询**一行数据**并将该行数据转换为Map返回；返回`Map<String, Object>`；**经过测试，该方法也只适合于查询一条数据的情况，如果数据库中没有这条数据或者数据库中这条数据有相同的那么会抛出此异常！！！**
+
+4、`queryForObject()`：返回`T`类型；**注意，该方法只能查询一条数据，如果数据库中没有这条数据或者数据库中这条数据有相同的那么会抛出此异常！！！**
+
+---
+
+`预编译语句设值回调`使用：（在前面的增删改操作中经常用到）
+
+1、`PreparedStatementSetter`：通过回调获取JdbcTemplate提供的`PreparedStatement`，由用户来对相应的预编译语句相应参数设值
+
+2、`BatchPreparedStatementSetter`：类似于`PreparedStatementSetter`，但用于批处理，需要指定批处理大小
+
+---
+
+`结果集处理回调`的方法非常有用，可以让我们从`结果集(ResultSet)`里面拿到对应的数据做出想要的修改。`结果集处理回调`有下面几种常用接口：
+
+1、`RowMapper<T>`：`RowMapper接口`提供`mapRow(ResultSet rs, int rowNum)`方法将结果集的每一行转换为对应的类型`T`；`T`可以是Map、po对象、list等等都可以
+
+2、`RowCallbackHandler`：`RowCallbackHandler接口`也提供方法`processRow(ResultSet rs)`，能将结果集的每一行转换为需要的形式
+
+3、`ResultSetExtractor`：`ResultSetExtractor`使用回调方法`extractData(ResultSet rs)`提供给用户**`整个`**结果集，让用户决定如何处理该结果集
+
+---
+
+我们在设计po对象（也就是数据库字段对应的对象时），应该让其实现`RowMapper<T>`接口，这样以后使用JdbcTemplate操作数据库时使用到该po对象会变得容易一点，下面是例子：
+
+```java
+// po对象
+@Data
+@ToString
+@NoArgsConstructor
+@AllArgsConstructor
+public class Student implements RowMapper<Student> { // po对象应当继承RowMapper<T>
+
+    private long id;
+    private String name;
+    private String mathScore;
+    private String englishScore;
+
+    @DateTimeFormat(pattern = "yyyy:MM:dd hh:mm:ss")
+    private Timestamp registerTime;
+
+    private int isRegistered;
+	
+    // 重写mapRow()方法，将resultSet结果集和po对象的属性对应起来
+    @Override
+    public Student mapRow(ResultSet resultSet, int i) throws SQLException {
+        Student student = new Student();
+        student.setId(resultSet.getInt("id"));
+        student.setName(resultSet.getString("name"));
+        student.setMathScore(resultSet.getString("math_score"));
+        student.setEnglishScore(resultSet.getString("english_score"));
+        student.setRegisterTime(resultSet.getTimestamp("register_time"));
+        student.setIsRegistered(resultSet.getInt("is_registered"));
+        return student;
+    }
+}
+
+// DAO层操作方法示例
+public void querySingle() {
+    String sql = "select * from spring_stu where id = ?";
+
+    Student stu = jdbcTemplate.queryForObject(sql, new Object[]{"1"}, new Student()); // queryForObject()适合于返回单一值或对象
+    // 返回：查询单个对象 Student(id=1, name=0, mathScore=100, englishScore=100, registerTime=2020-03-06 21:00:49.0, isRegistered=0)
+    log.info("查询单个对象 {}", stu);
+
+    List<Student> stuList = jdbcTemplate.query(sql, new Object[]{"1"}, new Student()); // query()返回集合
+    // 返回：查询对象集合 [Student(id=1, name=0, mathScore=100, englishScore=100, registerTime=2020-03-06 21:00:49.0, isRegistered=0)]
+    log.info("查询对象集合 {}", stuList);
+
+    Map<String, Object> stuMap = jdbcTemplate.queryForMap(sql, "1"); // queryForMap()返回单一对象的Map
+    // 返回：查询对象Map {id=1, name=0, math_score=100, english_score=100, register_time=2020-03-06 21:00:49.0, is_registered=false}
+    log.info("查询对象Map {}", stuMap);
+
+    List<Map<String, Object>> stuMapList = jdbcTemplate.queryForList(sql, "1"); // queryForList()返回List<Map<String, Object>>
+    // 返回：查询对象Map的List [{id=1, name=0, math_score=100, english_score=100, register_time=2020-03-06 21:00:49.0, is_registered=false}]
+    log.info("查询对象Map的List {}", stuMapList);
+}
+```
+
+---
+
+那如果你的po对象没有实现`RowMapper<T>`接口呢？那么就要用到上面讲的`结果集处理回调`的三个API了，示例如下：
+
+```java
+public void queryM() {
+    String sql = "select * from spring_stu where math_score = ?";
+    
+	// RowMapper里面提供的是每一行结果的对应关系！！！
+    // RowMapper里面可以放xxx，最后返回结果是List<xxx>
+    List<Student> stuList = jdbcTemplate.query(sql, new RowMapper<Student>() {
+        @Override
+        public Student mapRow(ResultSet resultSet, int i) throws SQLException { // resultSet对应每一行的数据
+            Student stu = new Student();
+            stu.setId(resultSet.getLong("id"));
+            stu.setName(resultSet.getString("name"));
+            stu.setMathScore(resultSet.getString("math_score"));
+            stu.setEnglishScore(resultSet.getString("english_score"));
+            stu.setRegisterTime(resultSet.getTimestamp("register_time"));
+            stu.setIsRegistered(resultSet.getInt("is_registered"));
+            return stu;
+        }
+    }, "100"); // "100"对应sql语句里的`?`
+    log.info("RowMapper结果 {}", stuList);
+
+
+	// 采用RowCallbackHandler貌似没有返回值，所以我们需要在外部设置一个盛放数据的容器
+    List<Student> stuList2 = new ArrayList<>();
+    // 通过PreparedStatementSetter方式给sql语句的每个`?`处设值
+    jdbcTemplate.query(sql, new PreparedStatementSetter() {
+        @Override
+        public void setValues(PreparedStatement preparedStatement) throws SQLException {
+            preparedStatement.setString(1, "100");
+        }
+    }, new RowCallbackHandler() {
+        @Override
+        public void processRow(ResultSet resultSet) throws SQLException { // resultSet对应每一行的数据
+            Student stu = new Student();
+            stu.setId(resultSet.getLong("id"));
+            stu.setName(resultSet.getString("name"));
+            stu.setMathScore(resultSet.getString("math_score"));
+            stu.setEnglishScore(resultSet.getString("english_score"));
+            stu.setRegisterTime(resultSet.getTimestamp("register_time"));
+            stu.setIsRegistered(resultSet.getInt("is_registered"));
+            stuList2.add(stu);
+        }
+    });
+    log.info("RowCallbackHandler结果 {}", stuList2);
+
+	
+    // ResultSetExtractor处理的是整个结果集！！！与上面两个不同
+    List<Student> stuList3 = jdbcTemplate.query(sql, new PreparedStatementSetter() {
+        @Override
+        public void setValues(PreparedStatement preparedStatement) throws SQLException {
+            preparedStatement.setString(1, "100");
+        }
+    }, new ResultSetExtractor<List<Student>>() {
+        @Override
+        public List<Student> extractData(ResultSet resultSet) throws SQLException, DataAccessException { // resultSet这里代表整个结果集
+            List<Student> stuList = new ArrayList<>();
+            Student stu;
+            while (resultSet.next()) { // 所以这里要这样用
+                stu = new Student();
+                stu.setId(resultSet.getLong("id"));
+                stu.setName(resultSet.getString("name"));
+                stu.setMathScore(resultSet.getString("math_score"));
+                stu.setEnglishScore(resultSet.getString("english_score"));
+                stu.setRegisterTime(resultSet.getTimestamp("register_time"));
+                stu.setIsRegistered(resultSet.getInt("is_registered"));
+                stuList.add(stu);
+            }
+            return stuList;
+        }
+    });
+    log.info("ResultSetExtractor结果 {}", stuList3);
+}
+```
+
+还有很多API没讲到，利用上面的经验和IDEA的`Ctrl+P`可以知道该怎么用
+
+#### 多表查询操作
+
+参考：https://blog.csdn.net/fall10/article/details/84902958?depth_1-utm_source=distribute.pc_relevant.none-task&utm_source=distribute.pc_relevant.none-task
+
+多表联合查询利用上面的`结果集处理回调`的三个API就很好办了
+
+我的做法是先在`Navicat`里面模拟sql语句确定会返回什么结果，再利用`结果集处理回调`的三个API即可完成组装数据
+
+当然在此期间你得会`mysql多表联合查询`以及`mysql查询结果起别名`的方法，因为要是两个表里面都是`id`字段就不好区分了
+
+例如sql语句：
+
+```
+select spring_stu.id as 'id1', info_table.id as 'id2' from spring_stu, info_table where spring_stu.id = info_table.test_id;
+// spring_stu,info_table是两个表
+// as关键字起别名
+// where后面跟条件
+```
+
+实际查询例子：
+
+```java
+// 多表联合查询
+public void joinSearch() {
+    // spring_stu.*代表需要spring_stu的所有字段
+    String sql = "select spring_stu.*, info_table.id as 'id2' from spring_stu, info_table where spring_stu.id = info_table.test_id";
+	
+    // new Object[]{}代表该sql语句不需要参数，传入一个空Object[]即可
+    List<Map<String, Object>> res = jdbcTemplate.query(sql, new Object[]{}, new RowMapper<Map<String, Object>>() {
+        @Override
+        public Map<String, Object> mapRow(ResultSet resultSet, int i) throws SQLException {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", resultSet.getLong("id"));
+            map.put("name", resultSet.getString("name"));
+            map.put("math_socre", resultSet.getString("math_score"));
+            map.put("register_time", resultSet.getTimestamp("register_time"));
+            map.put("id2", resultSet.getLong("id2"));
+            return map;
+        }
+    });
+    log.info("多表查询结果示例 {}", res);
+}
+```
+
+springboot输出结果：
+
+```
+多表查询结果示例 [{id2=1, name=0, id=1, math_socre=100, register_time=2020-03-06 21:00:49.0}, {id2=2, name=0, id=1, math_socre=100, register_time=2020-03-06 21:00:49.0}, {id2=3, name=0, id=1, math_socre=100, register_time=2020-03-06 21:00:49.0}]
+```
+
+![1583566350671](images/1583566350671.png)
 
 #### MySQL删除数据库的所有数据
 
@@ -544,8 +772,16 @@ https://blog.csdn.net/u013468917/article/details/52217954
 
 `select count(*) from [表名]`
 
-
-
 ### 11.4、事务
 
 参考：https://www.cnblogs.com/harrychinese/p/SpringBoot_jdbc_transaction.html
+
+事务`@Transactional`注解常用于`增删改`操作上
+
+注意几点：
+
+1、`@Transactional`必须放到public方法上
+
+2、`RuntimeException`和自定义继承了`RuntimeException`的类可以用`@Transactional`回滚
+
+3、`非RuntimeException`事务不会回滚，除非使用`@Transactional(rollbackFor=非RuntimeException.class)`，抛出`非RuntimeException`异常, 并设置了`rollbackFor`参数, 事务能回滚
