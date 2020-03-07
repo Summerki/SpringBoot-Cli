@@ -791,6 +791,8 @@ springboot已经集成了发送邮件的方法
 
 参考：https://baijiahao.baidu.com/s?id=1654419465068708673&wfr=spider&for=pc
 
+上传时关于进度条的处理：https://www.cnblogs.com/zincredible/p/9060663.html
+
 ## 20、自定义favicon
 
 一个好用可以转换icon的网站：https://jinaconvert.com/cn/convert-to-ico.php
