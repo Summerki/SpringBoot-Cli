@@ -617,6 +617,10 @@ springboot约定不同环境下的配置文件名称规则为`application-{profi
 
 ## 12、返回JSON数据方法
 
+queryForObject返回int等类型介绍一下
+
+链接问题，后面的中文会一起当作链接的一部分
+
 ## 13、启动JAR包时带上自定义命令行参数
 
 ## 14、解决跨域问题
