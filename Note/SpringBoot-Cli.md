@@ -339,9 +339,9 @@ springboot自动配置好了异常页面，只要我们遵守下面的结构，�
 
 参考：
 
-https://www.jianshu.com/p/40096e2772f7（推荐）
+https://www.jianshu.com/p/40096e2772f7 （推荐）
 
-https://blog.csdn.net/qq_35783095/article/details/86600558（推荐）
+https://blog.csdn.net/qq_35783095/article/details/86600558 （推荐）
 
 https://blog.csdn.net/chengyuqiang/article/details/88180538
 
@@ -363,7 +363,7 @@ https://my.oschina.net/mengyuankan/blog/2222140
 
 注：刚才看到上面这个流程想到这里涉及到了`两次请求`，而且这里的自定义异常对象不好怎么处理给ajax请求，想到可以使用`redirect`重定向来解决这个问题，我们可以重定向到通用异常页面，而且在`RedirectAttributes`携带好要用的异常信息，这样就完美了！
 
-`RedirectAttributes`的使用：https://www.cnblogs.com/g-smile/p/9121335.html；有`addAttributie`和`addFlashAttributie`，推荐使用`addFlashAttributie`方法添加参数。
+`RedirectAttributes`的使用：https://www.cnblogs.com/g-smile/p/9121335.html  有`addAttributie`和`addFlashAttributie`，推荐使用`addFlashAttributie`方法添加参数。
 
 ---
 
