@@ -756,6 +756,16 @@ https://www.jianshu.com/p/67052c477dbf
 
 参考：https://blog.csdn.net/fastlearn/article/details/83306796
 
+QUzrtz的用法：https://blog.csdn.net/qq_41783309/article/details/80806304
+
+Quartz教程：https://www.w3cschool.cn/quartz_doc/quartz_doc-1xbu2clr.html
+
+springboot2.x已经很好的整合了Quartz，使用方法如下：
+
+https://www.cnblogs.com/ring2/p/11399295.html
+
+https://blog.csdn.net/qq_29119581/article/details/86687580
+
 ### 16.2、@Scheduled实现定时任务
 
 这是springboot自带的方式，但是它的cron表达式只能写死在注解上，我想要的是根据用户的输入来控制定时任务，这个需求得`16.1 Quartz`才能实现了
@@ -766,10 +776,10 @@ https://www.jianshu.com/p/67052c477dbf
 
 ```java
 // 推荐两种方法吧：
-// 1. 这一种当你在与jar包不同的磁盘执行时会有bug，但是一般不会有这样的情况呀，我还是比较推荐这种的
+// 1. 这一种方法获取的是你执行命令的目录，不是jar包的位置；但是我们一般会在jar包目录执行命令，有时也可以使用这个
 System.out.println(System.getProperty("user.dir"));
 // 2. 这种不会出错，也推荐
-ApplicationHome h = new ApplicationHome(getClass());
+ApplicationHome h = new ApplicationHome([你的主入口类].class);
 File jarF = h.getSource();
 System.out.println(jarF.getParentFile().toString());
 ```
@@ -785,13 +795,142 @@ String path = ResourceUtils.getURL("classpath:").getPath();
 
 springboot已经集成了发送邮件的方法
 
-参考：https://www.jianshu.com/p/a7097a21b42d （讲的很详细了）
+参考：https://www.jianshu.com/p/a7097a21b42d （讲的很详细了，于是把该网页下载下来放在了`./资料/springboot发送邮件 - 简书.html`）
 
 ## 19、文件上传和下载
 
 参考：https://baijiahao.baidu.com/s?id=1654419465068708673&wfr=spider&for=pc
 
 上传时关于进度条的处理：https://www.cnblogs.com/zincredible/p/9060663.html
+
+看下这个这一篇的文件下载部分：http://www.luyixian.cn/news_show_252263.aspx
+
+下面是简单演示，没做啥异常移除啥的，正式要用的时候在下面的样板代码里修修补补就够了
+
+### 19.1、单文件上传
+
+```html
+<h1>单文件上传测试</h1>
+<!--必须这样写enctype="multipart/form-data"-->
+<form action="/upload" method="post" enctype="multipart/form-data">
+    文件：<input type="file" name="uploadSingleFile">
+    <!--type必须是submit-->
+    <input type="submit" value="提交">
+</form>
+```
+
+```java
+@ResponseBody
+@RequestMapping("/upload")
+public String upload(@RequestParam("uploadSingleFile")MultipartFile singleFile, HttpServletRequest request) throws IOException {
+    if (singleFile.isEmpty()) {
+        return "文件为空";
+    }
+    String originalFilename = singleFile.getOriginalFilename(); // 获取上传的文件名
+    String suffixName = originalFilename.substring(originalFilename.lastIndexOf(".")); // 获取文件后缀
+    long fileSize = singleFile.getSize(); // 获取文件大小
+    log.info("上传的文件名 {} 上传的文件的后缀 {} 文件大小 {}", originalFilename, suffixName, fileSize);
+
+    // 设置文件上传后存放的路径
+    String path = DemoApplication.FILE_PATH + File.separator + "file" + File.separator + originalFilename;
+    File dest = new File(path);
+    // 检测是否存在目录
+    if (!dest.getParentFile().exists()) {
+        dest.getParentFile().mkdirs(); // 如果上级目录有不存在的，则新建全部不存在的文件夹;注意mkdir()和mkdirs()的区别
+    }
+
+    singleFile.transferTo(dest); // 文件写入
+
+    return "上传成功";
+}
+```
+
+### 19.2、多文件上传
+
+```html
+<h1>多文件上传测试</h1>
+<form action="/batch" method="post" enctype="multipart/form-data">
+    <!--注意，和上面的单文件上传相比，多了个`multiple`!!!就可以实现选择多个文件上传啦-->
+    文件：<input type="file" name="uploadMultipleFile" multiple>
+    <input type="submit" value="提交">
+</form>
+```
+
+```java
+// 我看到了两种获取选择的多文件的方式
+
+// 法1
+@RequestMapping("/batch")
+@ResponseBody
+public String batchUpload(@RequestParam("uploadMultipleFile")MultipartFile[] uploadFiles, HttpServletRequest request) {
+    // 通过MultipartFile[]获取所有要上传的文件的数组，利用循环处理里面每个文件即可，循环里面的逻辑和[上传单文件]的逻辑一致
+    for (MultipartFile file : uploadFiles) {
+        fileName = file.getOriginalFilename();
+        log.info("fileName {}", fileName);
+    }
+    return "多文件上传成功";
+}
+
+// 法2
+@RequestMapping("/batch")
+@ResponseBody
+public String batchUpload(HttpServletRequest request) {
+    // 通过request获取List<MultipartFile>,这个List里面存储了要上传的文件的集合
+    List<MultipartFile> uploadMultiFiles = ((MultipartHttpServletRequest) request).getFiles("uploadMultipleFile");
+    for (MultipartFile file : uploadMultiFiles) {
+        log.info("测试多文件上传 {}", file.getOriginalFilename());
+    }
+    return "多文件上传成功";
+}
+```
+
+### 19.3、文件下载操作
+
+声明：仅作测试
+
+```html
+<h1>文件下载测试</h1>
+<a href="/download?fileName=Test.pdf">点我下载</a>
+```
+
+```java
+@ResponseBody
+@RequestMapping("/download")
+public void downloadFile(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    String fileName = request.getParameter("fileName"); // 对应 Test.pdf
+    String filePath = DemoApplication.FILE_PATH + File.separator + "file" + File.separator + fileName;
+    File file = new File(filePath); // 获取 [Test.pdf] 对应在[springboot App(云服务器)]里面真实的存储路径
+
+    FileInputStream fis = new FileInputStream(file); // 输入流
+
+    if (file.exists()) {
+        // 下面两行是设置可以下载文件的必须设置
+        response.setContentType("application/force-download");
+        response.addHeader("Content-Disposition", "attachment;filename=" + fileName);
+		// 通过response获取输出流
+        OutputStream os = response.getOutputStream(); 
+
+        byte[] buffer = new byte[1024];
+        int len = 0;
+        while ((len = fis.read(buffer)) != -1) {
+            os.write(buffer, 0, len);
+        }
+        // 关闭流
+        os.close();
+        fis.close();
+    }
+}
+```
+
+### 19.4、通过properties配置上传细节
+
+![1583649260566](images/1583649260566.png)
+
+### 19.5、文件上传进度条处理
+
+找到一个应该说比较好的处理方法，还没来得及看，参考：https://github.com/admin-SIMON/spring-upload-file
+
+已经下载好了放在`./资料/spring-upload-file-master.zip`，以后再仔细看看怎么写的
 
 ## 20、自定义favicon
 
