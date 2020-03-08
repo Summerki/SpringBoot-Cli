@@ -944,6 +944,50 @@ public void downloadFile(HttpServletRequest request, HttpServletResponse respons
 		- favicon.ico
 ```
 
+## 21、将自定义的properties文件和某个类绑定
+
+开始我以为会很简单，没想到还弄了我挺久的时间……记录下方法吧
+
+参考：https://www.cnblogs.com/517cn/p/10946213.html
+
+我们主要使用到`@PropertySource`、`@value`、`@ConfigurationProperties`三个注解
+
+```java
+// 我给出有两种方法，下面给出例子
+// 为了可以随意起名字，我个人喜欢第一种方式
+
+// 假设properties文件位于 classpath:/config/student.properties，里面的内容如下：
+student.id=1
+student.name=test
+student.age=20
+    
+// 写法1：@PropertySource与@Value配合使用
+@Component // 方便以后注入到其他类中
+@PropertySource(value = "classpath:/config/student.properties")
+public class Student {
+	@Value("${student.id}") // 这种方式里面必须写全名
+    public String stuId; // 本来应该写成private的，再通过get/set来获取值；但是我想在其他的类里面直接用[对象.public属性]来获值，所以我这里写成了public
+    
+	@Value("${student.name}")
+    public String stuName;
+    
+    @Value("${student.age}")
+    public String stuAge;
+}
+
+
+// 写法2：@PropertySource与@ConfigurationProperties配合使用
+@Component // 方便以后注入到其他类中
+@PropertySource(value = "classpath:/config/student.properties")
+@ConfigurationProperties(prefix = "student") // 设置公共前缀
+@Data // 亲测，必须加这个才能获取到值（意思就是必须要有get/set方法）
+public class Student {
+    public String id; // 这种写法属性名称必须和properties文件的后缀一样！！！
+    public String name;
+    public String age;
+}
+```
+
 
 
 
