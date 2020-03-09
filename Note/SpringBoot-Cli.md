@@ -988,7 +988,43 @@ public class Student {
 }
 ```
 
+## 22、不通过@Autowired在普通类里面注入Bean
 
+最开始我在一个普通的po对象里我想使用`@Autowired`获取一个Bean，但是这样的话又会把这个Bean当作是这个po类的一个属性，这样岂不是太难受了。于是在网上看到一种解决方案，通过`ApplicationContext`的`getBean()`来获取到对应的Bean。
+
+参考：https://www.cnblogs.com/biaogejiushibiao/p/10061466.html
+
+同样这个可以用到很多地方
+
+```java
+/**
+ * 为了在po对象里使用IOC里的对象
+ * 参考：https://www.cnblogs.com/biaogejiushibiao/p/10061466.html
+ */
+@Component
+public class BeanUtil implements ApplicationContextAware { // 必须继承ApplicationContextAware类
+
+    private static  ApplicationContext applicationContext = null;
+
+    // ApplicationContextAware接口要实现的方法，通过这个方法把ApplicationContext带过来
+    @Override
+    public void setApplicationContext(ApplicationContext arg) throws BeansException {
+        if (applicationContext == null) {
+            applicationContext = arg;
+        }
+    }
+
+    // 获取ApplicationContext
+    public static ApplicationContext getApplicationContext() {
+        return applicationContext;
+    }
+
+    // 获取ApplicationContext里的指定bean
+    public static <T> T getBean(Class<T> clazz) {
+        return getApplicationContext().getBean(clazz); // 这是通过类.class的方法
+    }
+}
+```
 
 
 
