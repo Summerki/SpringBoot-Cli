@@ -189,7 +189,7 @@ public class DruidConfig {
 
 ---
 
-#### @DateTimeFormat(pattern = "yyyy:MM:dd hh:mm:ss")
+#### @DateTimeFormat(pattern = "yyyy:MM:dd HH:mm:ss")
 
 参考：https://www.cnblogs.com/doit8791/p/10493722.html
 

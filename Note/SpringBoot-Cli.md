@@ -335,7 +335,7 @@ springboot自动配置好了异常页面，只要我们遵守下面的结构，�
 			- 5xx.html // 服务器内部错误
 ```
 
-### 7.1、自定义错误页面
+### 7.1、@ControllerAdvice+@ExceptionHandler
 
 参考：
 
@@ -362,6 +362,8 @@ https://my.oschina.net/mengyuankan/blog/2222140
 ![1583388648028](images/1583388648028.png)
 
 注：刚才看到上面这个流程想到这里涉及到了`两次请求`，而且这里的自定义异常对象不好怎么处理给ajax请求，想到可以使用`redirect`重定向来解决这个问题，我们可以重定向到通用异常页面，而且在`RedirectAttributes`携带好要用的异常信息，这样就完美了！
+
+### 注：RedirectAttributes
 
 `RedirectAttributes`的使用：https://www.cnblogs.com/g-smile/p/9121335.html  有`addAttributie`和`addFlashAttributie`，推荐使用`addFlashAttributie`方法添加参数。
 
@@ -428,9 +430,82 @@ public class xxx {
 }
 ```
 
-## 8、配置切面
+---
+
+### 7.2、完全自定义错误
+
+> 在做项目时发现7.1节的方法确实挺好用的，`但是`，这种异常处理方式只能用来处理`应用级别的异常`，一些容器级别的错误就无法处理，包括404错误，Filter中抛出异常，@ControllerAdvice+@ExceptionHandler就无能为力了。
+>
+> 下面介绍一种处理所有异常错误的方法
+
+本节参考《Springboot+Vue全栈开发实战》
+
+如果需要更加灵活地对Error视图和数据进行处理，那么只需要提供自己的ErrorController即可。提供自己的ErrorController有两种方式：`一种是实现ErrorController接口`，`另一种是直接继承BasicErrorController`。由于ErrorController接口只提供一个待实现的方法，而BasicErrorController已经实现了很多功能，因此这里选择第二种继承BasicErrorController来实现自己ErrorController。具体定义如下：
+
+```java
+@Controller
+@Slf4j
+public class MyErrorController extends BasicErrorController { // 写一个controller继承BasicErrorController
+	
+    // 因为BasicErrorController没有无参构造函数，所以在创建BasicErrorController实例时需要传入参数，我们用@Autowired注入相关参数
+    @Autowired
+    public MyErrorController(ErrorAttributes errorAttributes, ServerProperties serverProperties, List<ErrorViewResolver> errorViewResolvers) {
+        super(errorAttributes, serverProperties.getError(), errorViewResolvers);
+    }
+
+    /**
+     * 返回 自定义error 视图
+     * @param request
+     * @param response
+     * @return
+     */
+    @Override
+    public ModelAndView errorHtml(HttpServletRequest request, HttpServletResponse response) {
+        Map<String, Object> errorAttributes = getErrorAttributes(request, false); // 第二个参数[includeStackTrace]表示是否会记录error的trace
+        // errorAttributes格式例如：{timestamp=Tue Mar 10 10:19:01 CST 2020, status=500, error=Internal Server Error, message=/ by zero, path=/remindYourself/test}
+        log.info("errorAttributes {}", errorAttributes);
+
+        // 构建errorVo对象
+        ErrorVo errorVo = new ErrorVo();
+        errorVo.setRequestErrorTime((Date) errorAttributes.get("timestamp"));
+        errorVo.setRequestUrl(request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort() + (String) errorAttributes.get("path"));
+        errorVo.setStatus(errorAttributes.get("status").toString());
+        errorVo.setStatusCodeInfo((String) errorAttributes.get("error"));
+        errorVo.setErrorMsg((String) errorAttributes.get("message"));
+        // 将errorVo对象存入session
+        HttpSession session = request.getSession();
+        session.setAttribute("errorVo", errorVo);
+
+        return new ModelAndView("error/error"); // 将所有的error都返回到 error/error.html
+    }
+
+    /**
+     * 返回自定义的error数据（json）
+     * @param request
+     * @return
+     */
+    @Override
+    public ResponseEntity<Map<String, Object>> error(HttpServletRequest request) {
+        Map<String, Object> body = getErrorAttributes(request, false);
+        body.put("testKey", "test_body");
+        HttpStatus status = getStatus(request);
+        return new ResponseEntity<>(body, status);
+    }
+}
+
+
+// 总结：通过上面这个controller，errorHtml()用来返回错误的HTML页面，error()用来返回错误的JSON数据。那么我们怎么知道它是要返回HTML还是JSON呢，那就要看请求头的Accept参数了
+```
+
+我想要实现的是在一个通用的error页面上返回任何错误，利用`7.2`就可以办到，流程图如下：
+
+![1583825848967](images/1583825848967.png)
+
+## 8、配置切面AOP
 
 切面也是个好东西，注解了切面的类/方法可以设置其执行前后都有什么动作
+
+参考：https://blog.csdn.net/Fine_Cui/article/details/103067087
 
 我们知道切面表达式该怎么写即可：
 
@@ -467,7 +542,7 @@ execution(public  com.sz.Girl com.sz..*.*(..))
 下面是一个利用切面的例子：
 
 ```java
-Aspect
+@Aspect
 @Component
 public class LogAspect { // 记录每次访问每个controller的url/ip/method/args
 
@@ -532,6 +607,16 @@ public class LogAspect { // 记录每次访问每个controller的url/ip/method/a
 }
 ```
 
+注：如果找不到`@Aspect`注解，请添加以下依赖：
+
+```xml
+<!--AOP-->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-aop</artifactId>
+</dependency>
+```
+
 ## 9、@RequestParam/@PathVariable/@RequestBody/@ResponseBody
 
 ```
@@ -581,7 +666,7 @@ springboot约定不同环境下的配置文件名称规则为`application-{profi
 
 #### 存储到MySQL后发现时间相差8个小时的解决方法
 
-#### @DateTimeFormat(pattern = "yyyy:MM:dd hh:mm:ss")
+#### @DateTimeFormat(pattern = "yyyy:MM:dd HH:mm:ss")
 
 #### Time、Timestamp、Date之间的转换
 
@@ -661,11 +746,16 @@ public List<T> test() {
 常用形式：
 
 ```java
-@DateTimeFormat(pattern = "yyyy:MM:dd hh:mm:ss")
-@JsonFormat(pattern = "yyyy:MM:dd hh:mm:ss",timezone = "GMT+8") // timezone是时间设置为东八区，避免时间在转换中有误差
+@DateTimeFormat(pattern = "yyyy:MM:dd HH:mm:ss")
+@JsonFormat(pattern = "yyyy:MM:dd HH:mm:ss",timezone = "GMT+8") // timezone是时间设置为东八区，避免时间在转换中有误差
 private Date registerTime;
 
+// 注：代表24小时制是HH，代表12小时制是hh；
 // 注：@JsonFormat注解可以在属性的上方，同样可以在属性对应的get方法上，两种方式没有区别
+
+// 注：如果有很多需要转换成指定格式的属性，可以在配置文件中使用，如下：
+// spring.jackson.time-zone=GMT+8  //设置为东八区
+// spring.jackson.time-zone=yyyy-MM-dd HH:mm:ss
 ```
 
 ## 13、启动JAR包时带上自定义命令行参数
@@ -1026,5 +1116,15 @@ public class BeanUtil implements ApplicationContextAware { // 必须继承Applic
 }
 ```
 
+## 23、通过request组装出一个网址
 
+比如我请求`http://localhost:8080/remindYourself/111`这个URL
+
+```java
+String contextPath = request.getContextPath(); // 返回/remindYourself
+String scheme = request.getScheme(); // 返回http
+String serverName = request.getServerName(); // 返回localhost
+int serverPort = request.getServerPort(); // 返回8080
+// 由上面的信息就可以组装出你想要访问的内容了
+```
 
