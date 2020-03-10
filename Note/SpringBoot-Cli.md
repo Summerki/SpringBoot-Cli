@@ -440,7 +440,9 @@ public class xxx {
 
 本节参考《Springboot+Vue全栈开发实战》
 
-如果需要更加灵活地对Error视图和数据进行处理，那么只需要提供自己的ErrorController即可。提供自己的ErrorController有两种方式：`一种是实现ErrorController接口`，`另一种是直接继承BasicErrorController`。由于ErrorController接口只提供一个待实现的方法，而BasicErrorController已经实现了很多功能，因此这里选择第二种继承BasicErrorController来实现自己ErrorController。具体定义如下：
+如果需要更加灵活地对Error视图和数据进行处理，那么只需要提供自己的ErrorController即可。提供自己的ErrorController有两种方式：`一种是实现ErrorController接口`，`另一种是直接继承BasicErrorController`。由于ErrorController接口只提供一个待实现的方法，而BasicErrorController已经实现了很多功能，因此这里选择第二种继承BasicErrorController来实现自己ErrorController。
+
+具体定义如下：
 
 ```java
 @Controller
@@ -1128,3 +1130,12 @@ int serverPort = request.getServerPort(); // 返回8080
 // 由上面的信息就可以组装出你想要访问的内容了
 ```
 
+## 24、使用springboot和ajax要注意的事情
+
+> 你想要通过ajax请求来跳转页面，这种思想是不行的！！！
+>
+> 因为ajax请求成功时会把所有的东西都用ajax里的`success:function(data){}`的`data`来接收，所以我们的网页内容跑到`data`里面去了，最后导致页面跳转失败
+
+参考：https://blog.csdn.net/x_c_yang/article/details/85107109
+
+解决：将使用ajax请求来跳转页面的方式改为`window.location.href = '/[你的context-path]/[你的controller]';`
